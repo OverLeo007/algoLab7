@@ -1,22 +1,38 @@
 import pygame as pg
 from math import ceil
 import consts as c
-from line_profiler_pycharm import profile
+from parse_tiles import Tiles
 
 
 class Tile:
+    tiler = Tiles()
+    status = {
+        "wall": tiler.get_random_wall,
+        "way": tiler.get_random_way,
+        "checked_way": tiler.get_random_checked_way,
+        "unchecked_way": tiler.get_random_unchecked_way
+    }
+
     def __init__(self, x, y, col=c.WHITE):
         self.x = x
         self.y = y
         self.col = col
+        self.status = "wall"
+        self.texture = Tile.status[self.status]()
 
     def draw(self, surface, cam):
         rect = pg.Rect(self.x * c.CELL_SIZE, self.y * c.CELL_SIZE, c.CELL_SIZE,
                        c.CELL_SIZE)
         rect = cam.apply(rect)
-        pg.draw.rect(surface, self.col, rect)
-        pg.draw.rect(surface, c.BLACK, rect, 1)
+        transformed = pg.transform.scale(self.texture, rect[2:])
 
+        surface.blit(transformed, rect)
+        # pg.draw.rect(surface, self.col, rect)
+        # pg.draw.rect(surface, c.BLACK, rect, 1)
+
+    def upd_texture(self, new_status):
+        self.status = new_status
+        self.texture = Tile.status[self.status]()
 
 class Camera:
     def __init__(self, width, height):
@@ -49,7 +65,6 @@ class Camera:
         return int(x_sc / c.CELL_SIZE), int(y_sc / c.CELL_SIZE)
 
 
-@profile
 def main():
     pg.init()
     screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
@@ -63,12 +78,12 @@ def main():
 
     camera = Camera(c.WIDTH, c.HEIGHT)
 
-    texture_image = pg.image.load('sourses/tileset.png')  # загружаем изображение
-    texture = texture_image.subsurface(
-        pg.Rect(0, 0, 64, 64))  # получаем текстуру из области 0,0 - 64x64
-    texture_rect = texture.get_rect()
-    texture_rect.x = 100
-    texture_rect.y = 100
+    # texture_image = pg.image.load('sources/tileset.png')  # загружаем изображение
+    # texture = texture_image.subsurface(
+    #     pg.Rect(0, 0, 64, 64))  # получаем текстуру из области 0,0 - 64x64
+    # texture_rect = texture.get_rect()
+    # texture_rect.x = 100
+    # texture_rect.y = 100
 
     clock = pg.time.Clock()
 
@@ -120,7 +135,15 @@ def main():
                     move_dir['state'] = True
                 else:
                     x, y = camera.apply_inverse(pg.mouse.get_pos())
-                    print(x, y)
+                    if event.key == pg.K_1:
+                        tiles[x][y].upd_texture("way")
+                    if event.key == pg.K_2:
+                        tiles[x][y].upd_texture("checked_way")
+                    if event.key == pg.K_3:
+                        tiles[x][y].upd_texture("unchecked_way")
+                    if event.key == pg.K_4:
+                        tiles[x][y].upd_texture("wall")
+                    print(x, y, event.key)
 
             if event.type == pg.KEYUP:
                 if move_dir := controls.get(event.key, False):
@@ -132,11 +155,11 @@ def main():
 
         screen.fill((0, 0, 0))
 
-        screen.blit(texture, texture_rect)
+        # screen.blit(texture, texture_rect)
 
-        # for line in tiles:
-        #     for tile in line:
-        #         tile.draw(screen, camera)
+        for line in tiles:
+            for tile in line:
+                tile.draw(screen, camera)
 
         pg.display.flip()
 
