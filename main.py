@@ -1,5 +1,5 @@
 import pygame as pg
-from math import ceil
+from math import ceil, sin
 import consts as c
 from parse_tiles import Tiles
 
@@ -13,18 +13,22 @@ class Tile:
         "unchecked_way": tiler.get_random_unchecked_way
     }
 
-    def __init__(self, x, y, col=c.WHITE):
+    def __init__(self, x, y, status="unchecked_way"):
         self.x = x
         self.y = y
-        self.col = col
-        self.status = "wall"
+        self.status = status
         self.texture = Tile.status[self.status]()
 
     def draw(self, surface, cam):
         rect = pg.Rect(self.x * c.CELL_SIZE, self.y * c.CELL_SIZE, c.CELL_SIZE,
                        c.CELL_SIZE)
         rect = cam.apply(rect)
-        transformed = pg.transform.scale(self.texture, rect[2:])
+        if self.status == "wall":
+            rect.y -= int((42 - 26) * (rect.h / 26))
+            transformed = pg.transform.scale(self.texture,
+                                             (rect.w, int(42 * rect.h / 26)))
+        else:
+            transformed = pg.transform.scale(self.texture, rect[2:])
 
         surface.blit(transformed, rect)
         # pg.draw.rect(surface, self.col, rect)
@@ -33,6 +37,7 @@ class Tile:
     def upd_texture(self, new_status):
         self.status = new_status
         self.texture = Tile.status[self.status]()
+
 
 class Camera:
     def __init__(self, width, height):
@@ -65,17 +70,25 @@ class Camera:
         return int(x_sc / c.CELL_SIZE), int(y_sc / c.CELL_SIZE)
 
 
-def main():
-    pg.init()
-    screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
-
+def generate_start():
     tiles = []
     for x in range(c.ROWS):
         line = []
         for y in range(c.COLS):
-            line.append(Tile(x, y))
+            if x == 0 or x == c.COLS - 1 or y == 0 or y == c.ROWS - 1 or (x % 2 == 0 or y % 2 == 0):
+                line.append(Tile(x, y, status="wall"))
+            else:
+                line.append(Tile(x, y))
         tiles.append(line)
 
+    return tiles
+
+
+def main():
+    pg.init()
+    screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
+
+    tiles = generate_start()
     camera = Camera(c.WIDTH, c.HEIGHT)
 
     # texture_image = pg.image.load('sources/tileset.png')  # загружаем изображение
@@ -123,12 +136,6 @@ def main():
             if pg.mouse.get_pressed(3)[0]:
                 x, y = camera.apply_inverse(pg.mouse.get_pos())
                 tile = tiles[x][y]
-                if last_drawed != tile:
-                    last_drawed = tile
-                    if tile.col == c.WHITE:
-                        tile.col = c.GREEN
-                    else:
-                        tile.col = c.WHITE
 
             if event.type == pg.KEYDOWN:
                 if move_dir := controls.get(event.key, False):

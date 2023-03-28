@@ -23,11 +23,11 @@ class Tiles:
             floors_image.subsurface(pg.Rect(130, 26, 26, 26)),
         ]
         self.wall_textures = [
-            walls_image.subsurface(pg.Rect(i * 24, 0, 24, 24)) for i in range(16)
+            walls_image.subsurface(pg.Rect(i * 24, 0, 24, 42)) for i in range(16)
         ]
 
     def get_random_wall(self):
-        return pg.transform.scale(choice(self.wall_textures), (26, 26))
+        return pg.transform.scale(choice(self.wall_textures), (26, 42))
 
     def get_random_way(self):
         return choice(self.way_floor_textures)
@@ -48,12 +48,12 @@ def main():
 
     scale = 3
     for i in range(10):
-        screen.blit(pg.transform.rotozoom(tiler.get_random_way("unchecked"), 0, scale),
-                    (i * 26 * scale, 26 * scale * 3, 26 * scale, 26 * scale))
-        screen.blit(pg.transform.rotozoom(tiler.get_random_way("checked"), 0, scale),
-                    (i * 26 * scale, 26 * scale, 26 * scale, 26 * scale))
-        screen.blit(pg.transform.rotozoom(tiler.get_random_way("way"), 0, scale),
-                    (i * 26 * scale, 26 * scale * 2, 26 * scale, 26 * scale))
+        # screen.blit(pg.transform.rotozoom(tiler.get_random_unchecked_way(), 0, scale),
+        #             (i * 26 * scale, 26 * scale * 3, 26 * scale, 26 * scale))
+        # screen.blit(pg.transform.rotozoom(tiler.get_random_checked_way(), 0, scale),
+        #             (i * 26 * scale, 26 * scale, 26 * scale, 26 * scale))
+        # screen.blit(pg.transform.rotozoom(tiler.get_random_way(), 0, scale),
+        #             (i * 26 * scale, 26 * scale * 2, 26 * scale, 26 * scale))
         screen.blit(pg.transform.rotozoom(tiler.get_random_wall(), 0, scale),
                     (i * 26 * scale, 0, 26 * scale, 26 * scale))
         # screen.blit(pg.transform.rotozoom(tiler.get_random_way("checked"), 0, scale),
