@@ -1,7 +1,12 @@
+from random import randint
+from typing import List
+
 import pygame as pg
 from math import ceil, sin
 import consts as c
 from parse_tiles import Tiles
+from pprint import pprint
+from gifer import GifSaver
 
 
 class Tile:
@@ -13,11 +18,12 @@ class Tile:
         "unchecked_way": tiler.get_random_unchecked_way
     }
 
-    def __init__(self, x, y, status="unchecked_way"):
+    def __init__(self, x, y, status="unchecked_way", weight=None):
         self.x = x
         self.y = y
         self.status = status
         self.texture = Tile.status[self.status]()
+        self.weight = weight
 
     def draw(self, surface, cam):
         rect = pg.Rect(self.x * c.CELL_SIZE, self.y * c.CELL_SIZE, c.CELL_SIZE,
@@ -37,6 +43,25 @@ class Tile:
     def upd_texture(self, new_status):
         self.status = new_status
         self.texture = Tile.status[self.status]()
+
+    def __hash__(self):
+        return hash((self.x, self.y))
+
+    def __eq__(self, other):
+        if self.x == other.x and self.y == other.y:
+            return True
+        return False
+
+    def __repr__(self):
+        if self.status == "wall" and self.weight is None:
+            status = "border_wall"
+        elif self.status == "wall" and self.weight is not None:
+            status = "maze_wall"
+        else:
+            status = self.status
+
+        return f"Tile(({self.x}, {self.y}), {status}" \
+               f"{f', {self.weight}' if self.weight is not None else ''})"
 
 
 class Camera:
@@ -71,34 +96,122 @@ class Camera:
 
 
 def generate_start():
-    tiles = []
+    ways = []
+    walls = []
+    full_tiles = []
+    max_weight = c.ROWS * c.COLS
     for x in range(c.ROWS):
         line = []
         for y in range(c.COLS):
-            if x == 0 or x == c.COLS - 1 or y == 0 or y == c.ROWS - 1 or (x % 2 == 0 or y % 2 == 0):
-                line.append(Tile(x, y, status="wall"))
+            if x == 0 or x == c.ROWS - 1 or y == 0 or y == c.COLS - 1:
+                new_tile = Tile(x, y, status="wall")
+            elif x % 2 == 0 or y % 2 == 0:
+                new_tile = Tile(x, y, status="wall", weight=randint(0, max_weight))
+                walls.append(new_tile)
             else:
-                line.append(Tile(x, y))
-        tiles.append(line)
+                new_tile = Tile(x, y)
+                ways.append(new_tile)
+            line.append(new_tile)
+        full_tiles.append(line)
 
-    return tiles
+    return full_tiles, walls, set(ways)
+
+
+def unite_sets(s_list):
+    done = False
+    while not done:
+        done = True
+        for i in range(len(s_list)):
+            for j in range(i + 1, len(s_list)):
+                if s_list[i].intersection(s_list[j]):
+                    s_list[i].update(s_list[j])
+                    s_list.pop(j)
+                    done = False
+                    break
+            if not done:
+                break
+    return s_list
+
+
+def generate_maze(screen, camera, clock):
+    full_tiles, walls, ways = generate_start()
+
+    # print(*full_tiles, sep='\n')
+    # return full_tiles
+
+    def get_verts(edge: Tile):
+        ex, ey = edge.x, edge.y
+        neighbours = [
+            full_tiles[ex][ey - 1],
+            full_tiles[ex][ey + 1],
+            full_tiles[ex - 1][ey],
+            full_tiles[ex + 1][ey]
+        ]
+        return set(filter(lambda x: x.status != "wall", neighbours))
+
+    edges = []
+    for wall in walls:
+        verts = get_verts(wall)
+        if verts:
+            edges.append((verts, wall))
+    edges.sort(key=lambda x: x[1].weight)
+
+    vert_sets: List[set] = []
+
+    to_del_edges = []
+
+    idx = 0
+    gifer = GifSaver("images", c.WIDTH, c.HEIGHT)
+
+    while True:
+        edge = edges[idx]
+        # print(vert_sets)
+        cycle = False
+        for v_set in vert_sets:
+            if edge[0].intersection(v_set):
+                if edge[0].issubset(v_set):
+                    cycle = True
+                else:
+                    v_set.update(edge[0])
+                break
+        else:
+            vert_sets.append(edge[0])
+        if not cycle:
+            to_del_edges.append(edge)
+        unite_sets(vert_sets)
+        idx += 1
+
+        for edge_to_del in edges:
+            if edge_to_del in to_del_edges:
+                edge_to_del[1].upd_texture("unchecked_way")
+        to_del_edges.clear()
+
+        gifer.add_img(pg.image.tostring(screen, "RGBA"))
+        for line in full_tiles:
+            for tile in line:
+                tile.draw(screen, camera)
+        pg.display.flip()
+
+        clock.tick(60)
+
+        if vert_sets[0] == ways:
+            break
+
+    print(len(edges), len(to_del_edges))
+    del gifer
+    return full_tiles
 
 
 def main():
     pg.init()
     screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
 
-    tiles = generate_start()
+    # print(*tiles, sep="\n")
     camera = Camera(c.WIDTH, c.HEIGHT)
-
-    # texture_image = pg.image.load('sources/tileset.png')  # загружаем изображение
-    # texture = texture_image.subsurface(
-    #     pg.Rect(0, 0, 64, 64))  # получаем текстуру из области 0,0 - 64x64
-    # texture_rect = texture.get_rect()
-    # texture_rect.x = 100
-    # texture_rect.y = 100
-
     clock = pg.time.Clock()
+
+    tiles = generate_maze(screen, camera, clock)
+
 
     controls = {
         pg.K_w: {
@@ -119,8 +232,6 @@ def main():
         }
     }
 
-    last_drawed = None
-
     running = True
     while running:
         for event in pg.event.get():
@@ -133,9 +244,8 @@ def main():
                 elif event.button == 5:  # колесико мыши вниз
                     camera.zoom_out()
 
-            if pg.mouse.get_pressed(3)[0]:
+            if event.type == pg.MOUSEBUTTONDOWN:
                 x, y = camera.apply_inverse(pg.mouse.get_pos())
-                tile = tiles[x][y]
 
             if event.type == pg.KEYDOWN:
                 if move_dir := controls.get(event.key, False):
@@ -150,7 +260,17 @@ def main():
                         tiles[x][y].upd_texture("unchecked_way")
                     if event.key == pg.K_4:
                         tiles[x][y].upd_texture("wall")
-                    print(x, y, event.key)
+
+                    if event.key == pg.K_UP:
+                        c.ROWS += 2
+                        c.COLS += 2
+
+                    if event.key == pg.K_DOWN:
+                        c.ROWS -= 2
+                        c.COLS -= 2
+
+                    if event.key == pg.K_r:
+                        tiles = generate_maze(screen, camera, clock)
 
             if event.type == pg.KEYUP:
                 if move_dir := controls.get(event.key, False):
