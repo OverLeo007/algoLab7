@@ -18,7 +18,6 @@ class GifSaver:
     """
 
     def __init__(self, directory, screen_width, screen_height) -> None:
-        # TODO: Починить создание папки для файлов
         """
         Конструктор сохранялки гифок
         :param directory: путь к директории с результирующей гифкой
