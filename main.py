@@ -7,6 +7,7 @@ import consts as c
 from parse_tiles import Tiles
 from pprint import pprint
 from gifer import GifSaver
+import cProfile
 
 
 class Tile:
@@ -40,13 +41,13 @@ class Tile:
 
         surface.blit(transformed, rect)
 
-        if self.f_weight != {} and self.status != "wall":
-            weights = " ".join(map(str, self.f_weight.values()))
-            text = pg.font.SysFont("Comic Sans", 12) \
-                .render(weights, True, c.YELLOW)
-
-            text_rect = text.get_rect(center=(rect.centerx, rect.y))
-            surface.blit(text, text_rect)
+        # if self.f_weight != {} and self.status != "wall":
+        #     # weights = " ".join(map(str, self.f_weight.values()))
+        #     text = pg.font.SysFont("Comic Sans", 12) \
+        #         .render(str(list(self.f_weight.values())[-1]), True, c.YELLOW)
+        #
+        #     text_rect = text.get_rect(center=(rect.centerx, rect.y))
+        #     surface.blit(text, text_rect)
 
         # pg.draw.rect(surface, self.col, rect)
         # pg.draw.rect(surface, c.BLACK, rect, 1)
@@ -154,7 +155,7 @@ def render_tiles(tiles, screen, camera, clock):
         for tile in line:
             tile.draw(screen, camera)
     pg.display.flip()
-    clock.tick(120)
+    clock.tick(60)
 
 
 def generate_start():
@@ -179,6 +180,16 @@ def generate_start():
     return full_tiles, walls, set(ways)
 
 
+def get_neighbours(tiles, tile):
+    neighbours = [
+        tiles[tile.y][tile.x - 1],
+        tiles[tile.y][tile.x + 1],
+        tiles[tile.y - 1][tile.x],
+        tiles[tile.y + 1][tile.x]
+    ]
+    return [tile for tile in neighbours if tile.status != "wall"]
+
+
 def unite_sets(s_list):
     done = False
     while not done:
@@ -195,23 +206,12 @@ def unite_sets(s_list):
     return s_list
 
 
-def generate_maze(screen, camera, clock):
+def generate_maze(screen, camera, clock, gifer):
     full_tiles, walls, ways = generate_start()
-
-    def get_verts(edge: Tile):
-        ex, ey = edge.x, edge.y
-        neighbours = [
-            full_tiles[ey][ex - 1],
-            full_tiles[ey][ex + 1],
-            full_tiles[ey - 1][ex],
-            full_tiles[ey + 1][ex]
-        ]
-        # return set(filter(lambda x: x.status != "wall", neighbours))
-        return set([tile for tile in neighbours if tile.status != "wall"])
 
     edges = []
     for wall in walls:
-        verts = get_verts(wall)
+        verts = set(get_neighbours(full_tiles, wall))
         if verts:
             edges.append((verts, wall))
     edges.sort(key=lambda x: x[1].weight)
@@ -219,11 +219,6 @@ def generate_maze(screen, camera, clock):
     vert_sets: List[set] = []
 
     idx = 0
-    if c.SAVE_GIF:
-        gifer = GifSaver("images", c.WIDTH, c.HEIGHT)
-    else:
-        gifer = None
-
     while True:
         for event in pg.event.get():
             if event.type == pg.QUIT:
@@ -257,59 +252,11 @@ def generate_maze(screen, camera, clock):
         if vert_sets[0] == ways:
             break
 
-    if gifer:
-        del gifer
     return full_tiles
 
 
-def find_way(tiles, routes, screen, camera, clock):
-    def find_way_neighbours(tile):
-        neighbours = [
-            tiles[tile.y][tile.x - 1],
-            tiles[tile.y][tile.x + 1],
-            tiles[tile.y - 1][tile.x],
-            tiles[tile.y + 1][tile.x]
-        ]
-        return [tile for tile in neighbours if tile.status != "wall"]
-
-    # def find_way_inner(from_tile: Tile, to_tile: Tile):
-    #     cur_weight = 1
-    #     weighted = []
-    #
-    #     if to_tile in weighted:
-    #         return
-    #
-    #     stack = [from_tile]
-    #     found = False
-    #     while stack:
-    #         print(cur_weight)
-    #         if found:
-    #             print("fin by find")
-    #             break
-    #         curr_tile = stack.pop()
-    #
-    #         for tile in curr_tile.neighbours:
-    #             if tile.weight is not None:
-    #                 continue
-    #
-    #             tile.weight = cur_weight
-    #             weighted.append(tile)
-    #
-    #             if tile == to_tile:
-    #                 found = True
-    #                 break
-    #
-    #             if tile not in [from_tile, to_tile]:
-    #                 tile.upd_texture("checked_way")
-    #
-    #             stack.append(tile)
-    #             render_tiles(tiles, screen, camera, clock)
-    #             for event in pg.event.get():
-    #                 if event.type == pg.QUIT:
-    #                     exit()
-    #         cur_weight += 1
-
-    def find_way_inner(from_tile: Tile, to_tile: Tile):
+def find_way(tiles, routes, screen, camera, clock, gifer):
+    def mark_tiles(from_tile: Tile, to_tile: Tile):
         from_tile.f_weight[to_tile] = 1
         weighted = {1: [from_tile]}
 
@@ -335,24 +282,73 @@ def find_way(tiles, routes, screen, camera, clock):
             if appends == 0:
                 print("NO WAY")
                 break
-            render_tiles(tiles, screen, camera, clock)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     exit()
+                move_event_handler(event, camera)
+            render_tiles(tiles, screen, camera, clock)
+            if gifer:
+                gifer.add_img(pg.image.tostring(screen, "RGBA"))
+
+    def find_way_in_marked(from_tile: Tile, to_tile: Tile):
+        way = [to_tile]
+        cur_tile = to_tile
+        while cur_tile != from_tile:
+            neighbours = get_neighbours(tiles, cur_tile)
+            lowest = min(
+                filter(lambda x: x.f_weight.get(to_tile, False), neighbours),
+                key=lambda tile: tile.f_weight[to_tile])
+            way.append(lowest)
+            cur_tile = lowest
+
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    exit()
+                move_event_handler(event, camera)
+
+        way.reverse()
+        return way
+
+    def render_ways(ways):
+        for way in ways:
+            if way is None:
+                continue
+            prev_tile = way.pop()
+            for tile in way:
+
+                prev_tile.upd_texture("way")
+                tile.upd_texture("way")
+                prev_tile = tile
+
+                render_tiles(tiles, screen, camera, clock)
+                for event in pg.event.get():
+                    if event.type == pg.QUIT:
+                        exit()
+                    move_event_handler(event, camera)
+                if gifer:
+                    gifer.add_img(pg.image.tostring(screen, "RGBA"))
+            else:
+                tile.upd_texture("way")
+
 
     for y in range(1, c.ROWS - 1):
         for x in range(1, c.COLS - 1):
             tile = tiles[y][x]
             tile.f_weight = {}
             if tile.status != "wall":
-                tile.neighbours = find_way_neighbours(tile)
+                tile.neighbours = get_neighbours(tiles, tile)
                 if tile.status != "way":
                     tile.upd_texture("unchecked_way")
 
     pairs = [(routes[i], routes[i + 1]) for i in range(len(routes) - 1)]
 
+    ways = []
     for pair in pairs:
-        find_way_inner(*pair)
+        mark_tiles(*pair)
+        ways.append(find_way_in_marked(*pair))
+
+    render_ways(ways)
+
     print("fin")
 
 
@@ -360,17 +356,23 @@ def main():
     pg.init()
     screen = pg.display.set_mode((c.WIDTH, c.HEIGHT), display=1)
 
+    if c.SAVE_GIF:
+        gifer = GifSaver("images", c.WIDTH, c.HEIGHT)
+    else:
+        gifer = None
+
     # print(*tiles, sep="\n")
     camera = Camera(c.WIDTH, c.HEIGHT)
     clock = pg.time.Clock()
 
     # tiles = generate_start()[0]
-    tiles = generate_maze(screen, camera, clock)
+    tiles = generate_maze(screen, camera, clock, gifer)
 
     route = []
-
     running = True
     while running:
+        is_route_changed = False
+
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 running = False
@@ -389,17 +391,25 @@ def main():
                         if left_mb:
                             tile.upd_texture("way")
                             route.append(tile)
+                            is_route_changed = True
                         if right_mb:
                             tile.upd_texture("unchecked_way")
                             tile.f_weight = {}
                             if tile in route:
                                 route.remove(tile)
+                                is_route_changed = True
+
                 # print(route)
 
             if event.type == pg.KEYDOWN:
                 if event.key in [pg.K_RETURN, pg.K_KP_ENTER]:
                     if len(route) > 1:
-                        find_way(tiles, route, screen, camera, clock)
+                        for line in tiles:
+                            for tile in line:
+                                if tile not in route and tile.status != "wall":
+                                    tile.upd_texture("unchecked_way")
+
+                        find_way(tiles, route, screen, camera, clock, gifer)
 
                 if event.key == pg.K_1:
                     x, y = camera.apply_inverse(pg.mouse.get_pos())
@@ -410,23 +420,33 @@ def main():
                         tile.upd_texture("wall")
 
                 if event.key == pg.K_r:
-                    tiles = generate_maze(screen, camera, clock)
+                    tiles = generate_maze(screen, camera, clock, gifer)
+                    # tiles = generate_start()[0]
                     route.clear()
+
+                if event.key == pg.K_t:
+                    route.clear()
+                    for line in tiles:
+                        for tile in line:
+                            if tile not in route and tile.status != "wall":
+                                ns = get_neighbours(tiles, tile)
+                                if len(ns) == 1:
+                                    tile.upd_texture("way")
+                                    route.append(tile)
+                                    is_route_changed = True
 
         screen.fill((0, 0, 0))
 
         # screen.blit(texture, texture_rect)
 
-        for line in tiles:
-            for tile in line:
-                tile.draw(screen, camera)
+        render_tiles(tiles, screen, camera, clock)
+        if is_route_changed:
+            if gifer:
+                gifer.add_img(pg.image.tostring(screen, "RGBA"))
 
-        pg.display.flip()
-
-        clock.tick(60)
-
+    del gifer
     pg.quit()
 
 
 if __name__ == '__main__':
-    main()
+    cProfile.run('main()')

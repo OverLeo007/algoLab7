@@ -11,6 +11,8 @@ ROWS = HEIGHT // CELL_SIZE if HEIGHT // CELL_SIZE % 2 != 0 else HEIGHT // CELL_S
 # ROWS = 5
 # COLS = 5
 
+FPS = 60
+
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)
