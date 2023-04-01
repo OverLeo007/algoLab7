@@ -1,15 +1,19 @@
 import pygame as pg
 
-WIDTH = 800
-HEIGHT = 600
+WIDTH = 1920
+HEIGHT = 1035
 
-CELL_SIZE = 32  # Размер клетки
+MAZE_W = int(WIDTH * 0.7)
+MAZE_H = int(HEIGHT)
 
-COLS = WIDTH // CELL_SIZE if WIDTH // CELL_SIZE % 2 != 0 else WIDTH // CELL_SIZE - 1
-ROWS = HEIGHT // CELL_SIZE if HEIGHT // CELL_SIZE % 2 != 0 else HEIGHT // CELL_SIZE - 1
+# CELL_SIZE = int((MAZE_W + MAZE_H) // 2 * 0.05)  # Размер клетки
+CELL_SIZE = 16
+#
+# COLS = int(MAZE_W // CELL_SIZE if MAZE_W // CELL_SIZE % 2 != 0 else MAZE_W // CELL_SIZE - 1)
+# ROWS = int(MAZE_H // CELL_SIZE if MAZE_H // CELL_SIZE % 2 != 0 else MAZE_H // CELL_SIZE - 1)
 
-# ROWS = 5
-# COLS = 5
+ROWS = 25
+COLS = 25
 
 FPS = 60
 

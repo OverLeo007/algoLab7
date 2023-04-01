@@ -12,22 +12,28 @@ class Tiles:
         floors_image = pg.image.load(f"{texture_folder}/floors.png")
         walls_image = pg.image.load(f"{texture_folder}/walls.png")
         self.unchecked_way_textures = [
-            floors_image.subsurface(pg.Rect(i * 26, 0, 26, 26)) for i in range(6)
+            floors_image.subsurface(pg.Rect(0, 52 + 26 * i, 26, 26)) for i in range(3)
         ]
         self.checked_way_textures = [
             floors_image.subsurface(pg.Rect(26, 26, 26, 26)),
             floors_image.subsurface(pg.Rect(104, 26, 26, 26)),
         ]
         self.way_floor_textures = [
-            floors_image.subsurface(pg.Rect(52, 26, 26, 26)),
-            floors_image.subsurface(pg.Rect(130, 26, 26, 26)),
+            floors_image.subsurface(pg.Rect(156 + 26 * i, 182, 26, 26)) for i in range(3)
+
         ]
         self.wall_textures = [
-            walls_image.subsurface(pg.Rect(i * 24, 0, 24, 42)) for i in range(16)
+            pg.transform.scale(
+                walls_image.subsurface(
+                    pg.Rect(i * 24, 0, 24, 42)
+                ), (26, 42)
+            )
+            for i in range(16)
         ]
 
+
     def get_random_wall(self):
-        return pg.transform.scale(choice(self.wall_textures), (26, 42))
+        return choice(self.wall_textures)
 
     def get_random_way(self):
         return choice(self.way_floor_textures)
@@ -44,7 +50,6 @@ def main():
     screen = pg.display.set_mode((c.WIDTH, c.HEIGHT))
 
     tiler = Tiles()
-
 
     scale = 3
     for i in range(10):
