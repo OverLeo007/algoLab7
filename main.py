@@ -2,14 +2,17 @@ import os
 from random import randint, choice
 from typing import List
 
+import cv2
+import numpy as np
 import pygame as pg
+import pygame_menu as pgm
 from math import ceil, sin
 import consts as c
 from parse_tiles import Tiles
 from pprint import pprint
 from gifer import GifSaver
 import cProfile
-from PIL import Image
+from PIL import Image, ImageStat
 
 
 class Camera:
@@ -70,15 +73,17 @@ class TileField(List[List["TileField.Tile"]]):
             rect = pg.Rect(self.x * c.CELL_SIZE, self.y * c.CELL_SIZE, c.CELL_SIZE,
                            c.CELL_SIZE)
             rect = cam.apply(rect)
-            if self.status == "wall":
-                w_w, w_h = TileField.Tile.tiler.wall_tile_size
-                rect.y -= int((w_h - w_w) * (rect.h / w_w))
-                transformed = pg.transform.scale(self.texture,
-                                                 (rect.w, int(w_h * rect.h / w_w)))
-            else:
-                transformed = pg.transform.scale(self.texture, rect[2:])
+            if pg.Rect(0, 0, c.MAZE_W, c.MAZE_H).colliderect(rect):
+                if self.status == "wall":
+                    w_w, w_h = TileField.Tile.tiler.wall_tile_size
+                    rect.y -= int((w_h - w_w) * (rect.h / w_w))
+                    transformed = pg.transform.scale(self.texture,
+                                                     (rect.w,
+                                                      int(w_h * rect.h / w_w)))
+                else:
+                    transformed = pg.transform.scale(self.texture, rect[2:])
 
-            surface.blit(transformed, rect)
+                surface.blit(transformed, rect)
 
         def upd_texture(self, new_status):
             self.status = new_status
@@ -133,7 +138,7 @@ class TileField(List[List["TileField.Tile"]]):
             for tile in line:
                 tile.render(self.screen, self.camera)
         pg.display.flip()
-        self.clock.tick(60)
+        self.clock.tick(30)
 
     def pred_gen(self):
         max_weight = c.ROWS * c.COLS
@@ -313,6 +318,8 @@ class TileField(List[List["TileField.Tile"]]):
                     if self.gifer:
                         self.gifer.add_img(pg.image.tostring(self.screen, "RGBA"))
 
+        print(routes)
+
         for y in range(1, c.ROWS - 1):
             for x in range(1, c.COLS - 1):
                 tile = self[x, y]
@@ -348,7 +355,7 @@ class TileField(List[List["TileField.Tile"]]):
                         file.write(way)
                 file.write("\n")
 
-    def save_to_png(self, filename="maze.png"):
+    def save_to_png(self, filename="maze_sources\\maze.png"):
         save_surface = pg.Surface((26 * c.COLS, 26 * c.ROWS + 16))
         surf_rect = save_surface.get_rect()
         w_w, w_h = TileField.Tile.tiler.wall_tile_size
@@ -368,10 +375,10 @@ class TileField(List[List["TileField.Tile"]]):
         img.save(filename)
         img.close()
 
-    def load_from_txt(self, filename="maze.txt"):
-        if filename not in os.listdir():
-            print("File Not Found")
-            return
+    def load_from_txt(self, filename="maze_sources/maze.txt"):
+        # if filename not in os.listdir():
+        #     print("File Not Found")
+        #     return
         with open(filename, "r", encoding="utf-8") as file:
             wall = file.readline().split("=")[-1].replace("\n", "")
             way = file.readline().split("=")[-1].replace("\n", "")
@@ -394,6 +401,33 @@ class TileField(List[List["TileField.Tile"]]):
             c.ROWS = y
             c.COLS = len(self[0])
 
+    def load_from_png(self, filename="maze_sources/test2.png"):
+
+        img = Image.open(filename)
+        i_w, i_h = img.size
+        img = img.resize((i_w // c.CELL_SIZE, i_h // c.CELL_SIZE),
+                         resample=Image.NEAREST)
+        img = img.convert('1')
+
+        width, height = img.size
+        self.clear()
+        c.COLS = width
+        c.ROWS = height
+
+        for y in range(height):
+            line = []
+            for x in range(width):
+                col = img.getpixel((x, y))
+                if x == 0 or x == width - 1 or y == 0 or y == height - 1:
+                    line.append(TileField.Tile(x, y, status="wall"))
+                elif col == 255:
+                    line.append(TileField.Tile(x, y, "unchecked_way"))
+                else:
+                    line.append(TileField.Tile(x, y, "wall"))
+            self.append(line)
+
+        img.close()
+
     def regen(self):
         self.walls.clear()
         self.ways.clear()
@@ -403,10 +437,73 @@ class TileField(List[List["TileField.Tile"]]):
 
 
 class Window:
+    regen_event = pg.event.Event(pg.USEREVENT, name="regen")
+    find_way_event = pg.event.Event(pg.USEREVENT, name="find_way")
+
+    class Menus:
+        def __init__(self, surface: pg.Surface):
+            self.main_menu = pgm.Menu("Maze", surface.get_width(),
+                                      surface.get_height(),
+                                      theme=pgm.themes.THEME_GREEN,
+                                      menu_id="main_menu")
+            self.main_menu.add.label("Enter game parameters:")
+            self.main_menu.add.text_input("Columns: ", default=str(c.COLS),
+                                          maxchar=3,
+                                          textinput_id="maze_cols",
+                                          valid_chars=list("0123456789"))
+            self.main_menu.add.text_input("Rows: ", default=str(c.ROWS),
+                                          maxchar=3,
+                                          textinput_id="maze_rows",
+                                          valid_chars=list("0123456789"))
+            self.main_menu.add.text_input("Cell size: ", default=str(c.CELL_SIZE),
+                                          maxchar=3,
+                                          textinput_id="maze_cell_size",
+                                          valid_chars=list("0123456789"))
+            self.main_menu.add.toggle_switch("Realtime Generation",
+                                             default=c.REALTIME_GEN,
+                                             toggleswitch_id="realtime")
+            self.main_menu.add.toggle_switch("Do gif record",
+                                             default=c.SAVE_GIF,
+                                             toggleswitch_id="save_gif")
+            self.main_menu.add.button("Regen", self.regen_handler)
+            self.main_menu.add.button("Find Way", self.find_way_post)
+            self.main_menu.add.button("IO options", self.open_io)
+
+            self.main_menu.set_relative_position(100 / c.MENU_X, c.MENU_Y)
+
+            self.io_menu = pgm.Menu("IO options",
+                                    surface.get_width(),
+                                    surface.get_height(),
+                                    theme=pgm.themes.THEME_BLUE,
+                                    menu_id="io_menu")
+            self.io_menu.set_relative_position(100 / c.MENU_X, c.MENU_Y)
+
+            self.io_menu.add.button("Go back", self.to_main_handler)
+
+        def regen_handler(self):
+            data = self.main_menu.get_input_data()
+            c.COLS = int(data["maze_cols"])
+            c.ROWS = int(data["maze_rows"])
+            c.CELL_SIZE = int(data["maze_cell_size"])
+            c.REALTIME_GEN = data["realtime"]
+            c.SAVE_GIF = data["save_gif"]
+            pg.event.post(Window.regen_event)
+
+        def find_way_post(self):
+            pg.event.post(Window.find_way_event)
+
+        def open_io(self):
+            self.main_menu._open(self.io_menu)
+
+        def to_main_handler(self):
+            self.main_menu.reset(1)
+
     def __init__(self):
         pg.init()
         self.screen = pg.display.set_mode((c.WIDTH, c.HEIGHT), display=1)
         self.maze_surface = self.screen.subsurface((0, 0, c.MAZE_W, c.MAZE_H))
+        self.menu_surface = self.screen.subsurface(c.MENU_RECT)
+        self.menu = Window.Menus(self.menu_surface)
         if c.SAVE_GIF:
             self.gifer = GifSaver("images", c.MAZE_W, c.MAZE_H)
         else:
@@ -423,10 +520,15 @@ class Window:
         self.field.generate_maze()
         self.route = []
 
+    def pgm_events_handler(self, events):
+        self.menu.main_menu.update(events)
+        self.menu.main_menu.draw(self.menu_surface)
+
     @staticmethod
     def pygame_events_handler(*handlers):
         returns = {}
-        for event in pg.event.get():
+        events = pg.event.get()
+        for event in events:
             if event.type == pg.QUIT:
                 exit()
                 pg.quit()
@@ -435,7 +537,8 @@ class Window:
                 resp = handler["handler"](event, *handler["args"])
                 if resp is not None:
                     returns[handler["handler"]] = resp
-        return returns
+
+        return returns, events
 
     @staticmethod
     def move_event_handler(event, camera):
@@ -481,22 +584,22 @@ class Window:
 
     def keyboard_events_handler(self, event):
         if event.type == pg.KEYDOWN:
-            if event.key in [pg.K_RETURN, pg.K_KP_ENTER]:
-                if len(self.route) > 1:
-                    for line in self.field:
-                        for tile in line:
-                            if tile not in self.route and tile.status != "wall":
-                                tile.upd_texture("unchecked_way")
+            # if event.key in [pg.K_RETURN, pg.K_KP_ENTER]:
+            #     if len(self.route) > 1:
+            #         for line in self.field:
+            #             for tile in line:
+            #                 if tile not in self.route and tile.status != "wall":
+            #                     tile.upd_texture("unchecked_way")
+            #
+            #         self.field.find_way(self.route)
 
-                    self.field.find_way(self.route)
-
-            if event.key == pg.K_1:
-                x, y = self.camera.apply_inverse(pg.mouse.get_pos())
-                tile = self.field[x, y]
-                if tile.status == "wall":
-                    tile.upd_texture("unchecked_way")
-                else:
-                    tile.upd_texture("wall")
+            # if event.key == pg.K_1:
+            #     x, y = self.camera.apply_inverse(pg.mouse.get_pos())
+            #     tile = self.field[x, y]
+            #     if tile.status == "wall":
+            #         tile.upd_texture("unchecked_way")
+            #     else:
+            #         tile.upd_texture("wall")
 
             if event.key == pg.K_r:
                 self.field.regen()
@@ -505,16 +608,35 @@ class Window:
             if event.key == pg.K_z:
                 self.field.save_to_txt()
 
-            if event.key == pg.K_l:
-                self.field.load_from_txt()
-
             if event.key == pg.K_x:
+                self.field.load_from_txt()
+                self.route.clear()
+
+            if event.key == pg.K_c:
                 self.field.save_to_png()
+
+            if event.key == pg.K_v:
+                self.field.load_from_png()
+                self.route.clear()
+
+    def custom_event_handler(self, event):
+        if event.type == pg.USEREVENT:
+            if event.name == "regen":
+                self.field.regen()
+                self.route.clear()
+            if event.name == "find_way":
+                if len(self.route) > 1:
+                    for line in self.field:
+                        for tile in line:
+                            if tile not in self.route and tile.status != "wall":
+                                tile.upd_texture("unchecked_way")
+
+                    self.field.find_way(self.route)
 
     def main_loop(self):
 
         while True:
-            resp = Window.pygame_events_handler(
+            returns, events = Window.pygame_events_handler(
                 {
                     "handler": Window.move_event_handler,
                     "args": [self.camera]
@@ -526,12 +648,17 @@ class Window:
                 {
                     "handler": self.keyboard_events_handler,
                     "args": []
+                },
+                {
+                    "handler": self.custom_event_handler,
+                    "args": []
                 }
             )
+            self.pgm_events_handler(events)
 
             self.field.render()
             # self.screen.fill(c.YELLOW)
-            if resp.get(self.way_point_pick_handler, False) is True:
+            if returns.get(self.way_point_pick_handler, False) is True:
                 if self.gifer:
                     self.gifer.add_img(pg.image.tostring(self.maze_surface, "RGBA"))
 
