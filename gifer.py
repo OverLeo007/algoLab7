@@ -61,12 +61,9 @@ class GifSaver:
         self.frames_count = 0
         self.gif_num += 1
 
+
     def __del__(self) -> None:
-        """
-        Метод, вызываемый при удалении экземпляра GifSaver,
-        закрывает все открытые доступы к temp гифкам и удаляет их,
-        оставляя только результирующую гифку
-        """
+        print("Сохраняем гифку...")
         gif_paths_list = list(map(lambda y: self.gif_dir + f"\\{y}",
                                   filter(lambda x: x.startswith("part_gif"),
                                          os.listdir(self.gif_dir))))
