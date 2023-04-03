@@ -1,4 +1,9 @@
-from typing import List
+"""
+Файл с реализацией поля клеток лабиринта и камеры для его отображения
+"""
+
+from math import ceil
+from typing import List, Union
 import pygame as pg
 import pygame_menu as pgm
 from random import randint, choice
@@ -12,6 +17,80 @@ from parse_tiles import Tiles
 import consts as c
 
 
+class Camera:
+    def __init__(self, screen: pg.Surface,
+                 width: Union[int, float],
+                 height: Union[int, float]) -> None:
+        """
+        Класс камеры, позволяющий передвигаться по полю и зумить
+        :param screen: экран камеры
+        :param width: его ширина
+        :param height: его высота
+        """
+        self.screen = screen
+        self.x = 0
+        self.y = 0
+        self.default_wh = width, height
+        self.width = width
+        self.height = height
+        self.zoom = 1.0
+
+    def move(self, dx: Union[int, float], dy: Union[int, float]) -> None:
+        """
+        Передвижение камеры на определенное расстояние
+        :param dx: расстояние по оси x
+        :param dy: расстояние по оси y
+        """
+        self.x += dx
+        self.y += dy
+
+    def zoom_in(self) -> None:
+        """
+        Приближение камеры
+        """
+        self.zoom *= 1.1
+
+    def zoom_out(self) -> None:
+        """
+        Отдаление камеры
+        """
+        self.zoom /= 1.1
+
+    def apply(self, rect: pg.Rect) -> pg.Rect:
+        """
+        Метод перевода ректа клетки в рект, с учетом смещения и зума
+        :param rect: рект клетки
+        :return: измененный рекн
+        """
+        return pg.Rect(
+            ceil(rect.x * self.zoom - self.x),
+            ceil(rect.y * self.zoom - self.y),
+            ceil(rect.width * self.zoom),
+            ceil(rect.height * self.zoom)
+        )
+
+    def apply_inverse(self, pos) -> tuple[int, int]:
+        """
+        Метод перевода глобальных координат в координаты на поле
+        :param pos: позиция в глобальных координатах
+        :return: координаты клетки на которую был произведен клик
+        """
+        sub_pos = self.screen.get_abs_offset()
+        rel_pos = pos[0] - sub_pos[0], pos[1] - sub_pos[1]
+        x_sc, y_sc = (rel_pos[0] + self.x) / self.zoom, (
+                rel_pos[1] + self.y) / self.zoom
+        return int(x_sc / c.CELL_SIZE), int(y_sc / c.CELL_SIZE)
+
+    def reset(self) -> None:
+        """
+        Сброс к начальным значениям
+        """
+        self.x = 0
+        self.y = 0
+        self.zoom = 1.0
+        self.width, self.height = self.default_wh
+
+
 class TileField(List[List["TileField.Tile"]]):
     class Tile:
         tiler = Tiles()
@@ -22,7 +101,15 @@ class TileField(List[List["TileField.Tile"]]):
             "unchecked_way": tiler.get_random_unchecked_way
         }
 
-        def __init__(self, x, y, status="unchecked_way", weight=None):
+        def __init__(self, x, y, status="unchecked_way", weight=None) -> None:
+            """
+            Класс клетки обладающей своей текстурой,
+            зависящей от статуса и координатами
+            :param x: координато по оси x
+            :param y: координато по оси y
+            :param status: статус клетки
+            :param weight: для генерации стен
+            """
             self.x = x
             self.y = y
             self.status = status
@@ -31,7 +118,12 @@ class TileField(List[List["TileField.Tile"]]):
             self.f_weight = {}
             self.neighbours = []
 
-        def render(self, surface, cam):
+        def render(self, surface, cam) -> None:
+            """
+            Метод отрисовки клетки на холст
+            :param surface: холст, куда отрисовываем
+            :param cam: камера, для корректного отображения
+            """
             rect = pg.Rect(self.x * c.CELL_SIZE, self.y * c.CELL_SIZE, c.CELL_SIZE,
                            c.CELL_SIZE)
             rect = cam.apply(rect)
@@ -47,19 +139,23 @@ class TileField(List[List["TileField.Tile"]]):
 
                 surface.blit(transformed, rect)
 
-        def upd_texture(self, new_status):
+        def upd_texture(self, new_status) -> None:
+            """
+            Метод обновления текстуры клетки исходя из статуса
+            :param new_status: новый статус
+            """
             self.status = new_status
             self.texture = TileField.Tile.textures_status[self.status]()
 
-        def __hash__(self):
+        def __hash__(self) -> int:
             return hash((self.x, self.y))
 
-        def __eq__(self, other):
+        def __eq__(self, other) -> bool:
             if self.x == other.x and self.y == other.y:
                 return True
             return False
 
-        def __repr__(self):
+        def __repr__(self) -> str:
             if self.status == "wall" and self.weight is None:
                 status = "border_wall"
             elif self.status == "wall" and self.weight is not None:
@@ -70,7 +166,14 @@ class TileField(List[List["TileField.Tile"]]):
             return f"Tile(({self.x}, {self.y}), {status}" \
                    f"{f', {self.weight}' if self.weight is not None else ''})"
 
-    def __init__(self, screen, camera, clock, gifer=None):
+    def __init__(self, screen, camera, clock, gifer=None) -> None:
+        """
+        Класс поля для клеток, наследованный от двумерного списка
+        :param screen: холст, для отрисовки поля
+        :param camera: камера
+        :param clock: pygame clock для поддержания fps
+        :param gifer: экземпляр GifSaver для записи гифки
+        """
         super().__init__()
         self.walls = []
         self.ways = []
@@ -94,7 +197,10 @@ class TileField(List[List["TileField.Tile"]]):
         else:
             super().__setitem__(key, value)
 
-    def render(self):
+    def render(self) -> None:
+        """
+        Метод отрисовки поля на холст
+        """
         self.screen.fill(c.BLACK)
         for line in self:
             for tile in line:
@@ -102,7 +208,10 @@ class TileField(List[List["TileField.Tile"]]):
         pg.display.flip()
         self.clock.tick(30)
 
-    def pred_gen(self):
+    def pred_gen(self) -> None:
+        """
+        Метод генерации поля, где у каждой клетки соседи - стены
+        """
         max_weight = c.ROWS * c.COLS
         for y in range(c.ROWS):
             line = []
@@ -119,7 +228,13 @@ class TileField(List[List["TileField.Tile"]]):
                 line.append(new_tile)
             self.append(line)
 
-    def get_not_wall_neighbours(self, tile: "TileField.Tile"):
+    def get_not_wall_neighbours(self, tile: "TileField.Tile") -> \
+            List["TileField.Tile"]:
+        """
+        Метод получения соседей клетки, не являющихся стенами
+        :param tile: клетка
+        :return: список клеток
+        """
         neighbours = [
             self[tile.x - 1, tile.y],
             self[tile.x + 1, tile.y],
@@ -129,8 +244,16 @@ class TileField(List[List["TileField.Tile"]]):
         ]
         return [tile for tile in neighbours if tile.status != "wall"]
 
-    def generate_maze(self):
-        def unite_sets(s_list):
+    def generate_maze(self) -> None:
+        """
+        Метод генерации лабиринта по алгоритму Краскала
+        """
+        def unite_sets(s_list) -> List[set]:
+            """
+            Функция объединения пересекающихся множеств в списке
+            :param s_list: список с множествами
+            :return: список без пересекающихся множеств
+            """
             done = False
             while not done:
                 done = True
@@ -206,8 +329,19 @@ class TileField(List[List["TileField.Tile"]]):
             if vert_sets[0] == ways:
                 break
 
-    def find_way(self, routes):
-        def mark_tiles(from_tile: TileField.Tile, to_tile: TileField.Tile):
+    def find_way(self, routes) -> None:
+        """
+        Метод поиска пути в лабиринте используя
+        алгоритм Ли (Волновой алгоритм)
+        :param routes: список точек, в который нужно прийти по порядку
+        """
+        def mark_tiles(from_tile: TileField.Tile, to_tile: TileField.Tile) -> bool:
+            """
+            Функция отметки клеток, который просмотрены алгоритмом
+            :param from_tile: начальная клетка пути
+            :param to_tile: конечная клетка пути
+            :return: True при наличии пути, False в обратном случае
+            """
             from_tile.f_weight[to_tile] = 1
             weighted = {1: [from_tile]}
 
@@ -247,7 +381,14 @@ class TileField(List[List["TileField.Tile"]]):
                     self.gifer.add_img(pg.image.tostring(self.screen, "RGBA"))
             return True
 
-        def find_way_in_marked(from_tile: TileField.Tile, to_tile: TileField.Tile):
+        def find_way_in_marked(from_tile: TileField.Tile, to_tile: TileField.Tile) \
+            -> List[TileField.Tile]:
+            """
+            Функция поиска пути в пространстве отмеченных клеток
+            :param from_tile: начальная клетка
+            :param to_tile: конечная клетка
+            :return: список клеток, входящих в путь
+            """
             way = [to_tile]
             cur_tile = to_tile
             while cur_tile != from_tile:
@@ -280,7 +421,11 @@ class TileField(List[List["TileField.Tile"]]):
             way.reverse()
             return way
 
-        def render_ways(ways):
+        def render_ways(ways: List[List[TileField.Tile]]) -> None:
+            """
+            Функция отрисовки клеток путей на холст
+            :param ways:
+            """
             for way in ways:
                 if way is None:
                     continue
@@ -319,7 +464,13 @@ class TileField(List[List["TileField.Tile"]]):
 
         print("fin")
 
-    def save_to_txt(self, wall="▓▓", way="░░", filename="maze.txt"):
+    def save_to_txt(self, wall="▓▓", way="░░", filename="maze.txt") -> None:
+        """
+        Функция сохранения лабиринта в txt формат
+        :param wall: символы для обозначения стены
+        :param way: символы для обозначения пути
+        :param filename: название файла
+        """
         if len(wall) != len(way):
             raise ValueError("Длина обозначения стены не может "
                              "отличаться от длины обозначения пути")
@@ -334,7 +485,11 @@ class TileField(List[List["TileField.Tile"]]):
                         file.write(way)
                 file.write("\n")
 
-    def save_to_png(self, filename="maze_sources\\maze.png"):
+    def save_to_png(self, filename="maze_sources\\maze.png") -> None:
+        """
+        Функция сохранения лабиринта в png формат
+        :param filename: название файла
+        """
         save_surface = pg.Surface((26 * c.COLS, 26 * c.ROWS + 16))
         surf_rect = save_surface.get_rect()
         w_w, w_h = TileField.Tile.tiler.wall_tile_size
@@ -354,7 +509,11 @@ class TileField(List[List["TileField.Tile"]]):
         img.save(filename)
         img.close()
 
-    def load_from_txt(self, filename="maze_sources/maze.txt"):
+    def load_from_txt(self, filename="maze_sources/maze.txt") -> None:
+        """
+        Функция загрузки лабиранта из текстового файла
+        :param filename: название файла
+        """
         # if filename not in os.listdir():
         #     print("File Not Found")
         #     return
@@ -380,8 +539,11 @@ class TileField(List[List["TileField.Tile"]]):
             c.ROWS = y
             c.COLS = len(self[0])
 
-    def load_from_png(self, filename="maze_sources/test2.png"):
-
+    def load_from_png(self, filename="maze_sources/test2.png") -> None:
+        """
+        Функция загрузки лабиринта из картинки
+        :param filename: название файла картинки
+        """
         img = Image.open(filename)
         i_w, i_h = img.size
         img = img.resize((i_w // c.CELL_SIZE, i_h // c.CELL_SIZE),
@@ -407,7 +569,10 @@ class TileField(List[List["TileField.Tile"]]):
 
         img.close()
 
-    def regen(self):
+    def regen(self) -> None:
+        """
+        Метод регенерации лабиринта
+        """
         self.walls.clear()
         self.ways.clear()
         super().clear()

@@ -1,55 +1,20 @@
+"""
+Основной файл - точка входа
+"""
+from typing import List
+
 import pygame as pg
-from math import ceil
 import consts as c
 from gifer import GifSaver
-from tiles_grid import TileField
+from tiles_grid import TileField, Camera
 from pg_menus import Menus, Events
 
 
-class Camera:
-    def __init__(self, screen, width, height):
-        self.screen = screen
-        self.x = 0
-        self.y = 0
-        self.default_wh = width, height
-        self.width = width
-        self.height = height
-        self.zoom = 1.0
-
-    def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
-
-    def zoom_in(self):
-        self.zoom *= 1.1
-
-    def zoom_out(self):
-        self.zoom /= 1.1
-
-    def apply(self, rect):
-        return pg.Rect(
-            ceil(rect.x * self.zoom - self.x),
-            ceil(rect.y * self.zoom - self.y),
-            ceil(rect.width * self.zoom),
-            ceil(rect.height * self.zoom)
-        )
-
-    def apply_inverse(self, pos):
-        sub_pos = self.screen.get_abs_offset()
-        rel_pos = pos[0] - sub_pos[0], pos[1] - sub_pos[1]
-        x_sc, y_sc = (rel_pos[0] + self.x) / self.zoom, (
-                rel_pos[1] + self.y) / self.zoom
-        return int(x_sc / c.CELL_SIZE), int(y_sc / c.CELL_SIZE)
-
-    def reset(self):
-        self.x = 0
-        self.y = 0
-        self.zoom = 1.0
-        self.width, self.height = self.default_wh
-
-
 class Window:
-    def __init__(self):
+    def __init__(self) -> None:
+        """
+        Класс окна приложения
+        """
         pg.init()
         self.screen = pg.display.set_mode((c.WIDTH, c.HEIGHT), display=1)
         self.maze_surface = self.screen.subsurface((0, 0, c.MAZE_W, c.MAZE_H))
@@ -71,11 +36,20 @@ class Window:
         self.field.generate_maze()
         self.route = []
 
-    def pgm_events_handler(self, events):
+    def pgm_events_handler(self, events: List[pg.event.Event]) -> None:
+        """
+        Метод передающий ивенты pygame в меню
+        :param events: список ивентов
+        """
         self.menu.main_menu.update(events)
         self.menu.main_menu.draw(self.menu_surface)
 
-    def way_point_pick_handler(self, event):
+    def way_point_pick_handler(self, event: pg.event.Event) -> bool:
+        """
+        Метод поддрежки нажатий мыши на поле
+        :param event: pygame ивент
+        :return: True если список выбранных клеток был изменен
+        """
         status = False
         left_mb, mid_mb, right_mb = pg.mouse.get_pressed()
 
@@ -100,7 +74,11 @@ class Window:
                             status = True
         return status
 
-    def custom_event_handler(self, event):
+    def custom_event_handler(self, event: pg.event.Event) -> None:
+        """
+        Метод поддержки кастомных ивентов, определенных в pg_menus.Events
+        :param event: pygame ивент
+        """
         if event.type == pg.USEREVENT:
             if event.name == "regen":
                 self.camera.reset()
@@ -140,8 +118,10 @@ class Window:
                     self.field.gifer = self.gifer
                 c.SAVE_GIF = not c.SAVE_GIF
 
-    def main_loop(self):
-
+    def main_loop(self) -> None:
+        """
+        Метод главного цикла pygame
+        """
         while True:
             returns, events = Events.pygame_events_handler(
                 {

@@ -1,10 +1,21 @@
+"""
+Файл содержащий реализцию меню, а также класс с ивентами
+и методами поддержки ивентов
+"""
+from typing import Tuple, Dict, Callable, Any, List
+
 import pygame as pg
 import pygame_menu as pgm
 import os
 import consts as c
+from tiles_grid import Camera
 
 
 class Events:
+    """
+    Класс, содержащий кастомные ивенты для меню,
+    также в нем реализованы общие для всех pygame loop'ов методы поддержки
+    """
     regen_event = pg.event.Event(pg.USEREVENT, name="regen")
     find_way_event = pg.event.Event(pg.USEREVENT, name="find_way")
     load_from_png_event = pg.event.Event(pg.USEREVENT, name="load_from", kind="png")
@@ -14,7 +25,20 @@ class Events:
     gif_toggled_event = pg.event.Event(pg.USEREVENT, name="gif_change")
 
     @staticmethod
-    def pygame_events_handler(*handlers):
+    def pygame_events_handler(*handlers) -> Tuple[Dict[Callable, Any],
+                                                  List[pg.event.Event]]:
+        """
+        Метод - хаб проверки всех ивентов,
+        кастомизируемый при помощи handlers
+        :param handlers: список содержащий словари формата:
+                {
+                    "handler": handler_method,
+                    "args": [handler_arg1, handler_arg2...]
+                }
+        :return: кортеж, где первый элемент - словарь,
+        ключи которого методы поддержки ивентов, а значения - то, что они возвращают,
+        второй элемент - список полученных ивентов из pg.event.get()
+        """
         returns = {}
         events = pg.event.get()
         for event in events:
@@ -30,7 +54,12 @@ class Events:
         return returns, events
 
     @staticmethod
-    def move_event_handler(event, camera):
+    def move_event_handler(event: pg.event.Event, camera: "Camera") -> None:
+        """
+        Метод обработки нажатий мыши для движения камеры и зума
+        :param event: pygame ивент
+        :param camera: объект камеры
+        """
         if event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 4:  # колесико мыши вверх
                 camera.zoom_in()
@@ -51,7 +80,11 @@ class Events:
 
 
 class Menus:
-    def __init__(self, surface: pg.Surface):
+    def __init__(self, surface: pg.Surface) -> None:
+        """
+        Класс, реализующий сайдбар меню
+        :param surface: холст меню
+        """
         self.main_menu = pgm.Menu("Maze", surface.get_width(),
                                   surface.get_height(),
                                   theme=pgm.themes.THEME_GREEN,
@@ -110,7 +143,10 @@ class Menus:
         self.io_menu.add.button("Submit", self.txt_submit)
         self.io_menu.add.button("Go back", self.to_main_handler)
 
-    def regen_handler(self):
+    def regen_handler(self) -> None:
+        """
+        Метод вызова регенерации лабиринта с введенными параметрами
+        """
         data = self.main_menu.get_input_data()
         c.COLS = int(data["maze_cols"])
         c.ROWS = int(data["maze_rows"])
@@ -118,16 +154,29 @@ class Menus:
         c.REALTIME_GEN = data["realtime"]
         pg.event.post(Events.regen_event)
 
-    def toggle_gifer(self, state):
+    def toggle_gifer(self, _) -> None:
+        """
+        Метод перелючения записи гифки
+        :param _: статус переключателя
+        """
         pg.event.post(Events.gif_toggled_event)
 
-    def find_way_post(self):
+    def find_way_post(self) -> None:
+        """
+        Метод запуска нахождения пути
+        """
         pg.event.post(Events.find_way_event)
 
-    def open_io(self):
+    def open_io(self) -> None:
+        """
+        Метод открытия меню ввода/вывода в файлы
+        """
         self.main_menu._open(self.io_menu)
 
-    def png_submit(self):
+    def png_submit(self) -> None:
+        """
+        Метод подтверждения IO картинки
+        """
         data = self.io_menu.get_input_data()
         file = data["png_io"]
         toggle = data["png_io_toggle"]
@@ -139,7 +188,10 @@ class Menus:
                 Events.load_from_png_event.path = file
                 pg.event.post(Events.load_from_png_event)
 
-    def txt_submit(self):
+    def txt_submit(self) -> None:
+        """
+        Метод подтверждения IO текстового представления
+        """
         data = self.io_menu.get_input_data()
         file = data["txt_io"]
         toggle = data["txt_io_toggle"]
@@ -152,5 +204,8 @@ class Menus:
                 Events.load_from_txt_event.path = file
                 pg.event.post(Events.load_from_txt_event)
 
-    def to_main_handler(self):
+    def to_main_handler(self) -> None:
+        """
+        Метод возвращения в начальное меню
+        """
         self.main_menu.reset(1)
