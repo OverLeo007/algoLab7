@@ -490,20 +490,18 @@ class TileField(List[List["TileField.Tile"]]):
         Функция сохранения лабиринта в png формат
         :param filename: название файла
         """
-        save_surface = pg.Surface((26 * c.COLS, 26 * c.ROWS + 16))
-        surf_rect = save_surface.get_rect()
-        w_w, w_h = TileField.Tile.tiler.wall_tile_size
         f_w, f_h = TileField.Tile.tiler.floor_tile_size
+        save_surface = pg.Surface((f_w * c.COLS, f_w * c.ROWS))
+        surf_rect = save_surface.get_rect()
 
         for y, line in enumerate(self):
             for x, tile in enumerate(line):
-                texture_surface = tile.texture
-                rect = texture_surface.get_rect()
-                rect.x = x * w_w
-                rect.y = y * w_w + (w_h - f_h)
-                if tile.status == "wall":
-                    rect.y -= int((w_h - w_w) * (w_h / w_w)) - (w_h - f_h) + 6
-                save_surface.blit(texture_surface, rect)
+                rect = pg.Rect(x * f_w, y * f_h, f_w, f_h)
+                if self[x, y].status == "wall":
+                    pg.draw.rect(save_surface, c.BLACK, rect)
+                else:
+                    pg.draw.rect(save_surface, c.WHITE, rect)
+                # save_surface.blit(texture_surface, rect)
         img = Image.frombytes('RGBA', (surf_rect.w, surf_rect.h),
                               pg.image.tostring(save_surface, 'RGBA'))
         img.save(filename)

@@ -8,7 +8,6 @@ import pygame as pg
 import pygame_menu as pgm
 import os
 import consts as c
-from tiles_grid import Camera
 
 
 class Events:
@@ -54,7 +53,7 @@ class Events:
         return returns, events
 
     @staticmethod
-    def move_event_handler(event: pg.event.Event, camera: "Camera") -> None:
+    def move_event_handler(event: pg.event.Event, camera) -> None:
         """
         Метод обработки нажатий мыши для движения камеры и зума
         :param event: pygame ивент
@@ -89,7 +88,10 @@ class Menus:
                                   surface.get_height(),
                                   theme=pgm.themes.THEME_GREEN,
                                   menu_id="main_menu",
-                                  position=(0, 0))
+                                  position=(0, 0),
+                                  surface=surface,
+                                  mouse_motion_selection=True,
+                                mouse_enabled=True)
         self.main_menu.add.label("Enter game parameters:")
         self.main_menu.add.text_input("Columns: ", default=str(c.COLS),
                                       maxchar=3,
@@ -119,7 +121,10 @@ class Menus:
                                 surface.get_height(),
                                 theme=pgm.themes.THEME_BLUE,
                                 menu_id="io_menu",
-                                position=(0, 0))
+                                position=(0, 0),
+                                surface=surface,
+                                mouse_motion_selection=True,
+                                mouse_enabled=True)
         # self.io_menu.set_relative_position(100 / c.MENU_X, c.MENU_Y)
         self.io_menu.add.label("PNG IO", max_char=0, font_size=50)
         self.io_menu.add.text_input("File path: ",
