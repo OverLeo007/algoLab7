@@ -311,6 +311,12 @@ class TileField(List[List["TileField.Tile"]]):
             if self.gifer:
                 self.gifer.add_img(pg.image.tostring(self.screen, "RGBA"))
             if c.REALTIME_GEN:
+                Events.pygame_events_handler(
+                    {
+                        "handler": Events.move_event_handler,
+                        "args": [self.camera]
+                    }
+                )
                 self.render()
             else:
                 percentage = round(

@@ -84,6 +84,10 @@ class Menus:
         Класс, реализующий сайдбар меню
         :param surface: холст меню
         """
+        # small_font_theme_green = pgm.themes.THEME_GREEN
+        pgm.themes.THEME_GREEN.widget_font_size = 15
+        pgm.themes.THEME_BLUE.widget_font_size = 15
+
         self.main_menu = pgm.Menu("Maze", surface.get_width(),
                                   surface.get_height(),
                                   theme=pgm.themes.THEME_GREEN,
@@ -91,7 +95,8 @@ class Menus:
                                   position=(0, 0),
                                   surface=surface,
                                   mouse_motion_selection=True,
-                                mouse_enabled=True)
+                                  mouse_enabled=True
+                                  )
         self.main_menu.add.label("Enter game parameters:")
         self.main_menu.add.text_input("Columns: ", default=str(c.COLS),
                                       maxchar=3,
@@ -105,16 +110,19 @@ class Menus:
                                       maxchar=3,
                                       textinput_id="maze_cell_size",
                                       valid_chars=list("0123456789"))
-        self.main_menu.add.toggle_switch("Realtime Generation",
+        self.main_menu.add.label("Realtime Generation", max_char=0)
+        self.main_menu.add.toggle_switch(title="",
                                          default=c.REALTIME_GEN,
                                          toggleswitch_id="realtime")
-        self.main_menu.add.toggle_switch("Do gif record",
+        self.main_menu.add.label("Do gif record", max_char=0)
+        self.main_menu.add.toggle_switch("",
                                          default=c.SAVE_GIF,
                                          toggleswitch_id="save_gif",
                                          onchange=self.toggle_gifer)
         self.main_menu.add.button("Regen", self.regen_handler)
         self.main_menu.add.button("Find Way", self.find_way_post)
         self.main_menu.add.button("IO options", self.open_io)
+
 
         self.io_menu = pgm.Menu("IO options",
                                 surface.get_width(),
@@ -126,7 +134,7 @@ class Menus:
                                 mouse_motion_selection=True,
                                 mouse_enabled=True)
         # self.io_menu.set_relative_position(100 / c.MENU_X, c.MENU_Y)
-        self.io_menu.add.label("PNG IO", max_char=0, font_size=50)
+        self.io_menu.add.label("PNG IO", max_char=0, font_size=30)
         self.io_menu.add.text_input("File path: ",
                                     default="maze_sources/maze.png",
                                     maxchar=0,
@@ -136,7 +144,7 @@ class Menus:
                                        state_text=("Input", "Output"),
                                        toggleswitch_id="png_io_toggle")
         self.io_menu.add.button("Submit", self.png_submit)
-        self.io_menu.add.label("TXT IO", max_char=0, font_size=50)
+        self.io_menu.add.label("TXT IO", max_char=0, font_size=30)
         self.io_menu.add.text_input("File path:",
                                     default="maze_sources/maze.txt",
                                     maxchar=0,

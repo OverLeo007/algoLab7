@@ -3,13 +3,15 @@
 """
 import pygame as pg
 
-WIDTH = 1920
-HEIGHT = 1035
+WIDTH = 1000
+HEIGHT = 800
 
-MAZE_W = int(WIDTH * 0.7)
+MENU_W = 200
+
+MAZE_W = WIDTH - MENU_W
 MAZE_H = int(HEIGHT)
 
-MENU_W = WIDTH - MAZE_W
+
 MENU_H = HEIGHT
 MENU_X = MAZE_W
 MENU_Y = 0
